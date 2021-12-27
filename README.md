@@ -4,6 +4,8 @@ Small discord bot using an open source weather API, written in Rust.
 The only requirement to use this would be a discord bot token, that needs to be put into the config file from which the application reads.
 *A future approach might be to provide this token through environment variables or as argument for the executable.*
 
+Works only for guild channels (right now).
+
 # Open Source Weather API
 Credits go to [wttr.in](https://github.com/chubin/wttr.in).
 
