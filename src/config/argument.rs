@@ -39,15 +39,9 @@ impl ConfigTrait for Config {
             let mut split_args: Split<&str> = arg.split("=");
             if let Some(str) = split_args.next() {
                 if str.contains("token") {
-                    token_argument = match split_args.next() {
-                        Some(token) => Some(String::from(token)),
-                        None => None,
-                    }
+                    token_argument = split_args.next().map(|token| String::from(token));
                 } else if str.contains("channel") {
-                    channel_argument = match split_args.next() {
-                        Some(channel) => Some(String::from(channel)),
-                        None => None,
-                    }
+                    channel_argument = split_args.next().map(|channel| String::from(channel));
                 }
             }
         }
