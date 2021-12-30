@@ -1,5 +1,6 @@
 mod config;
 
+use std::sync::Arc;
 use crate::config::config::ConfigTrait;
 use serenity::{
     async_trait,
@@ -16,13 +17,25 @@ enum ConfigHandler {
 }
 
 impl ConfigHandler {
-    fn get_token(self) -> String {
-        match self {
-            ConfigHandler::File(file) => file.token,
-            ConfigHandler::Argument(argument) => argument.token,
-            ConfigHandler::Environment(environment) => environment.token,
+    fn get_token(&self) -> String {
+        match &self {
+            ConfigHandler::File(file) => file.token.to_owned(),
+            ConfigHandler::Argument(argument) => argument.token.to_owned(),
+            ConfigHandler::Environment(environment) => environment.token.to_owned(),
         }
     }
+
+    fn get_channel(&self) -> Option<String> {
+        match &self {
+            ConfigHandler::File(file) => file.channel.to_owned(),
+            ConfigHandler::Argument(argument) => argument.channel.to_owned(),
+            ConfigHandler::Environment(environment) => environment.channel.to_owned(),
+        }
+    }
+}
+
+impl TypeMapKey for ConfigHandler {
+    type Value = Arc<String>;
 }
 
 struct Handler;
@@ -31,6 +44,7 @@ struct Handler;
 impl EventHandler for Handler {
     async fn message(&self, context: Context, msg: Message) {
         // Make sure the bot doesn't read it's own messages.
+        // @TODO: Make "wetter" exchangeable.
         if !msg.author.bot && msg.content.to_lowercase().contains("wetter") {
             let channel = match msg.channel_id.to_channel(&context).await {
                 Ok(channel) => channel,
@@ -40,7 +54,14 @@ impl EventHandler for Handler {
                 }
             };
 
-            // @TODO: Channel name changeable/scope-able through config (mutex/arc).
+            {
+                let data_read = context.data.read().await;
+                if let Some(chan) = data_read.get::<ConfigHandler>() {
+                    if channel.guild().unwrap().name != *chan.to_string() {
+                        return;
+                    }
+                };
+            };
 
             // Is the amount of arguments appropriate? There should only be the command and the location.
             let location: Vec<&str> = msg.content.split(" ").collect();
@@ -106,6 +127,11 @@ async fn main() {
         .event_handler(Handler)
         .await
         .expect("Err creating client");
+
+    if let Some(channel) = config_handler.get_channel() {
+        let mut data = client.data.write().await;
+        data.insert::<ConfigHandler>(Arc::new(channel));
+    }
 
     if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);
