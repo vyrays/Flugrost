@@ -12,6 +12,7 @@ type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
 pub struct Config {
     pub channel: Option<String>,
     pub token: String,
+    pub command: String,
 }
 
 #[derive(Debug, Clone)]
@@ -35,6 +36,7 @@ impl ConfigTrait for Config {
             .collect();
         let mut token_argument: Option<String> = None;
         let mut channel_argument: Option<String> = None;
+        let mut command_argument: String = String::from("wetter");
         for arg in filtered_arguments.iter() {
             let mut split_args: Split<&str> = arg.split("=");
             if let Some(str) = split_args.next() {
@@ -42,6 +44,11 @@ impl ConfigTrait for Config {
                     token_argument = split_args.next().map(|token| String::from(token));
                 } else if str.contains("channel") {
                     channel_argument = split_args.next().map(|channel| String::from(channel));
+                } else if str.contains("command") {
+                    command_argument = match split_args.next() {
+                        Some(command) => String::from(command),
+                        None => String::from("wetter"),
+                    };
                 }
             }
         }
@@ -53,6 +60,7 @@ impl ConfigTrait for Config {
         Ok(ConfigHandler::Argument(Config {
             channel: channel_argument,
             token: token_argument.unwrap(),
+            command: command_argument,
         }))
     }
 }

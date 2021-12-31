@@ -1,9 +1,9 @@
 use crate::config::config::ConfigTrait;
 use crate::ConfigHandler;
 use serde::{Deserialize, Serialize};
+use std::error::Error;
 use std::fmt::{Debug, Formatter};
 use std::{error, fmt};
-use std::error::Error;
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -27,6 +27,7 @@ impl error::Error for TokenNotFoundError {}
 pub struct Config {
     pub channel: Option<String>,
     pub token: String,
+    pub command: String,
 }
 
 impl ConfigTrait for Config {
@@ -42,9 +43,18 @@ impl ConfigTrait for Config {
             }
             Some(channel)
         });
+        // Always have at least "wetter" as command. Otherwise, take the command from the config.
+        config_json.command = {
+            if config_json.command != "" {
+                config_json.command
+            } else {
+                String::from("wetter")
+            }
+        };
         Ok(ConfigHandler::File(Config {
             channel: config_json.channel,
             token: config_json.token,
+            command: config_json.command,
         }))
     }
 }

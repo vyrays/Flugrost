@@ -1,6 +1,6 @@
 mod config;
 
-use std::sync::Arc;
+use std::collections::HashMap;
 use crate::config::config::ConfigTrait;
 use serenity::{
     async_trait,
@@ -8,6 +8,7 @@ use serenity::{
     prelude::*,
     utils::MessageBuilder,
 };
+use std::sync::Arc;
 
 #[derive(Debug)]
 enum ConfigHandler {
@@ -32,10 +33,18 @@ impl ConfigHandler {
             ConfigHandler::Environment(environment) => environment.channel.to_owned(),
         }
     }
+
+    fn get_command(&self) -> String {
+        match &self {
+            ConfigHandler::File(file) => file.command.to_owned(),
+            ConfigHandler::Argument(argument) => argument.command.to_owned(),
+            ConfigHandler::Environment(environment) => environment.command.to_owned(),
+        }
+    }
 }
 
 impl TypeMapKey for ConfigHandler {
-    type Value = Arc<String>;
+    type Value = Arc<HashMap<String, String>>;
 }
 
 struct Handler;
@@ -44,8 +53,22 @@ struct Handler;
 impl EventHandler for Handler {
     async fn message(&self, context: Context, msg: Message) {
         // Make sure the bot doesn't read it's own messages.
-        // @TODO: Make "wetter" exchangeable.
-        if !msg.author.bot && msg.content.to_lowercase().contains("wetter") {
+        if msg.author.bot {
+            return;
+        }
+
+        let data_read = context.data.read().await;
+        let map = match data_read.get::<ConfigHandler>() {
+            Some(arc) => arc,
+            None => return
+        };
+
+        let mut weather_command: &str = "wetter";
+        if let Some(command) = map.get("command") {
+            weather_command = command.as_str();
+        }
+
+        if msg.content.to_lowercase().contains(weather_command) {
             let channel = match msg.channel_id.to_channel(&context).await {
                 Ok(channel) => channel,
                 Err(why) => {
@@ -54,14 +77,11 @@ impl EventHandler for Handler {
                 }
             };
 
-            {
-                let data_read = context.data.read().await;
-                if let Some(chan) = data_read.get::<ConfigHandler>() {
-                    if channel.guild().unwrap().name != *chan.to_string() {
-                        return;
-                    }
-                };
-            };
+            if let Some(chan) = map.get("channel") {
+                if channel.guild().unwrap().name != *chan {
+                    return;
+                }
+            }
 
             // Is the amount of arguments appropriate? There should only be the command and the location.
             let location: Vec<&str> = msg.content.split(" ").collect();
@@ -128,9 +148,14 @@ async fn main() {
         .await
         .expect("Err creating client");
 
-    if let Some(channel) = config_handler.get_channel() {
+    {
         let mut data = client.data.write().await;
-        data.insert::<ConfigHandler>(Arc::new(channel));
+        let mut map: HashMap<String, String> = HashMap::new();
+        map.insert(String::from("command"), config_handler.get_command());
+        if let Some(channel) = config_handler.get_channel() {
+            map.insert(String::from("channel"), channel);
+            data.insert::<ConfigHandler>(Arc::new(map));
+        }
     }
 
     if let Err(why) = client.start().await {

@@ -9,6 +9,7 @@ type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
 pub struct Config {
     pub channel: Option<String>,
     pub token: String,
+    pub command: String,
 }
 
 impl ConfigTrait for Config {
@@ -23,9 +24,15 @@ impl ConfigTrait for Config {
             Err(_err) => None,
         };
 
+        let command = match env::var("COMMAND") {
+            Ok(var) => String::from(var),
+            Err(_err) => String::from("wetter"),
+        };
+
         Ok(ConfigHandler::Environment(Config {
             channel,
             token,
+            command,
         }))
     }
 }
