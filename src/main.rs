@@ -1,6 +1,5 @@
 mod config;
 
-use std::collections::HashMap;
 use crate::config::config::ConfigTrait;
 use serenity::{
     async_trait,
@@ -8,6 +7,7 @@ use serenity::{
     prelude::*,
     utils::MessageBuilder,
 };
+use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -60,7 +60,7 @@ impl EventHandler for Handler {
         let data_read = context.data.read().await;
         let map = match data_read.get::<ConfigHandler>() {
             Some(arc) => arc,
-            None => return
+            None => return,
         };
 
         let mut weather_command: &str = "wetter";
