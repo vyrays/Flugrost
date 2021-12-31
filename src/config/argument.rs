@@ -31,7 +31,7 @@ impl ConfigTrait for Config {
         let arguments = args();
         let filtered_arguments: Vec<String> = arguments
             .filter(|arg| {
-                arg.to_lowercase().contains("token") || arg.to_lowercase().contains("channel")
+                arg.to_lowercase().contains("token") || arg.to_lowercase().contains("channel") || arg.to_lowercase().contains("command")
             })
             .collect();
         let mut token_argument: Option<String> = None;
