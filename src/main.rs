@@ -1,6 +1,8 @@
 mod config;
+mod structs;
 
-use crate::config::config::ConfigTrait;
+use crate::{config::config::ConfigTrait, structs::weather::Weather};
+use reqwest::Error;
 use serenity::{
     async_trait,
     model::{channel::Message, gateway::Ready},
@@ -101,26 +103,79 @@ impl EventHandler for Handler {
                 return;
             }
 
-            let weather: String = reqwest::get(format!(
-                "https://wttr.in/{}?format='%l:+%c+%t(%f)+%h+%w",
-                location.iter().next().unwrap().to_owned()
-            ))
+            let mut forecast_date: String = String::from("");
+            let forecasts: Vec<Weather> = match weather_forecasts(
+                &mut forecast_date,
+                location.iter().next().unwrap(),
+            )
             .await
-            .unwrap()
-            .text()
-            .await
-            .unwrap();
+            {
+                Ok(forecasts) => forecasts,
+                Err(why) => {
+                    println!("Error sending message: {:?}", why);
+                    return;
+                }
+            };
 
-            let response = MessageBuilder::new().push(weather).build();
-            if let Err(why) = msg.channel_id.say(&context.http, &response).await {
+            if let Err(why) = msg
+                .channel_id
+                .send_message(&context.http, |message| {
+                    let content = message.content("");
+                    content.embed(|embed| {
+                        for forecast in forecasts {
+                            embed.title(format!("{}", forecast_date)).fields(vec![(
+                                forecast.label,
+                                format!(
+                                    "⌚ {}\n🌡️ {}°C ({}°C)\n🌬️ {} - {} km/h\n{}% 🌧️ {}% 🌨️\n{} mm",
+                                    forecast.time,
+                                    forecast.temp,
+                                    forecast.temp_felt,
+                                    forecast.wind_min,
+                                    forecast.wind_max,
+                                    forecast.chanceofrain,
+                                    forecast.chanceofsnow,
+                                    forecast.precipitation
+                                ),
+                                true,
+                            )]);
+                        }
+                        embed
+                    });
+                    content
+                })
+                .await
+            {
                 println!("Error sending message: {:?}", why);
-            }
+            };
         }
     }
 
     async fn ready(&self, _: Context, ready: Ready) {
         println!("{} is connected!", ready.user.name);
     }
+}
+
+async fn weather_forecasts(
+    forecast_date: &mut String,
+    location: &str,
+) -> Result<Vec<Weather>, Error> {
+    // Fetch today's weather as JSON and wrap it as serde_json::Value, which basically takes everything from arbitrary JSON.
+    let weather_json: serde_json::Value =
+        reqwest::get(format!("https://wttr.in/{}?format=j1", location))
+            .await?
+            .json()
+            .await?;
+    *forecast_date = weather_json["weather"][0]["date"]
+        .to_string()
+        .replace("\"", "");
+    let mut weather: Vec<Weather> = vec![];
+    let hours = weather_json["weather"][0]["hourly"].clone();
+    // Only access certain 09:00 AM, 03:00 PM and 09:00 PM.
+    for i in [3, 5, 7] {
+        weather.push(Weather::from(hours.get(i).unwrap()));
+    }
+
+    Ok(weather)
 }
 
 fn create_config_handler() -> Option<ConfigHandler> {
