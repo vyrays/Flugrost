@@ -2,7 +2,6 @@ mod config;
 mod structs;
 
 use crate::{config::config::ConfigTrait, structs::weather::Weather};
-use reqwest::Error;
 use serenity::{
     async_trait,
     model::{channel::Message, gateway::Ready},
@@ -158,7 +157,7 @@ impl EventHandler for Handler {
 async fn weather_forecasts(
     forecast_date: &mut String,
     location: &str,
-) -> Result<Vec<Weather>, Error> {
+) -> Result<Vec<Weather>, reqwest::Error> {
     // Fetch today's weather as JSON and wrap it as serde_json::Value, which basically takes everything from arbitrary JSON.
     let weather_json: serde_json::Value =
         reqwest::get(format!("https://wttr.in/{}?format=j1", location))
@@ -170,7 +169,7 @@ async fn weather_forecasts(
         .replace("\"", "");
     let mut weather: Vec<Weather> = vec![];
     let hours = weather_json["weather"][0]["hourly"].clone();
-    // Only access certain 09:00 AM, 03:00 PM and 09:00 PM.
+    // Only access 09:00 AM, 03:00 PM and 09:00 PM.
     for i in [3, 5, 7] {
         weather.push(Weather::from(hours.get(i).unwrap()));
     }
